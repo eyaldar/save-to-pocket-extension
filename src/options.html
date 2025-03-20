@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pocket Extension Options</title>
+    <style>
+        body {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #ef4056;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            color: #ef4056;
+            font-size: 1.2em;
+            margin: 30px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .option-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .option-group:hover {
+            background: #f0f0f0;
+        }
+        
+        .option-title {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .option-description {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #ef4056;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .status.connected {
+            background: #e6f4ea;
+            color: #1e7e34;
+        }
+        
+        .status.disconnected {
+            background: #fce8e6;
+            color: #d93025;
+        }
+        
+        .button {
+            background: #ef4056;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background 0.2s ease;
+        }
+        
+        .button:hover {
+            background: #d03a4c;
+        }
+        
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .shortcut-input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .shortcut-input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100px;
+            background: #fff;
+        }
+        
+        .shortcut-input:focus {
+            outline: none;
+            border-color: #ef4056;
+        }
+        
+        .shortcut-status {
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+        
+        .shortcut-status.error {
+            color: #d93025;
+        }
+        
+        .shortcut-status.success {
+            color: #1e7e34;
+        }
+        
+        .current-shortcut {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pocket Extension Options</h1>
+        
+        <h2 class="section-title">Account Settings</h2>
+        <div class="option-group">
+            <div class="option-title">Pocket Connection</div>
+            <div class="option-description">
+                Connect your Pocket account to enable tag suggestions and other features.
+            </div>
+            <div id="connectionStatus" class="status disconnected">
+                Not connected
+            </div>
+            <button id="connectButton" class="button">Connect to Pocket</button>
+        </div>
+
+        <h2 class="section-title">Features</h2>
+        <div class="option-group">
+            <div class="option-title">Tag Suggestions</div>
+            <div class="option-description">
+                Enable tag suggestions based on your existing Pocket tags when saving items.
+            </div>
+            <div class="toggle-container">
+                <label class="toggle">
+                    <input type="checkbox" id="tagSuggestionsToggle">
+                    <span class="slider"></span>
+                </label>
+                <span id="tagSuggestionsStatus">Disabled</span>
+            </div>
+        </div>
+
+        <div class="option-group">
+            <div class="option-title">Developer Mode</div>
+            <div class="option-description">
+                Show developer tools and console in the popup interface.
+            </div>
+            <div class="toggle-container">
+                <label class="toggle">
+                    <input type="checkbox" id="devModeToggle">
+                    <span class="slider"></span>
+                </label>
+                <span id="devModeStatus">Disabled</span>
+            </div>
+        </div>
+
+        <h2 class="section-title">Interface Settings</h2>
+        <div class="option-group">
+            <div class="option-title">Keyboard Shortcut</div>
+            <div class="option-description">
+                Set a keyboard shortcut to quickly open the Pocket Saver popup.
+            </div>
+            <div id="currentShortcut" class="current-shortcut"></div>
+            <button id="openShortcutsPage" class="button">Set Keyboard Shortcut</button>
+        </div>
+
+        <div class="option-group">
+            <div class="option-title">Popup Auto-Close</div>
+            <div class="option-description">
+                Set how long the popup stays open after saving an item (in seconds).
+            </div>
+            <div class="shortcut-input-container">
+                <input type="number" id="popupCloseInterval" min="0" max="60" class="shortcut-input">
+                <span>seconds</span>
+            </div>
+            <div id="popupCloseStatus" class="shortcut-status"></div>
+        </div>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html> 

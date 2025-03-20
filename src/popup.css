@@ -1,0 +1,103 @@
+.tag-suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tag-suggestion:hover,
+.tag-suggestion.selected {
+    background-color: #f0f0f0;
+}
+
+.tag-suggestion.selected {
+    background-color: #e0e0e0;
+}
+
+/* Status message styles */
+#status {
+    padding: 6px 10px;
+    margin: 4px 0;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 400;
+    text-align: center;
+    transition: all 0.3s ease;
+    opacity: 0.9;
+}
+
+#status.info {
+    background-color: #fff8e1;
+    color: #ff8f00;
+    border: none;
+}
+
+#status.success {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border: none;
+}
+
+#status.error {
+    background-color: #ffebee;
+    color: #c62828;
+    border: none;
+}
+
+/* Spinner animation for loading state */
+.spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 4px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Save button styles */
+.save-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 100px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    font-size: 13px;
+    font-weight: 500;
+    background-color: #2e7d32;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.save-button:hover {
+    background-color: #1b5e20;
+    opacity: 0.95;
+}
+
+.save-button:disabled {
+    background-color: #ff8f00;
+    cursor: wait;
+}
+
+.save-button.error {
+    background-color: #c62828;
+}
+
+/* URL display styles */
+.url {
+    font-size: 13px;
+    color: #333;
+    margin: 6px 0;
+    padding: 6px;
+    background-color: #f5f5f5;
+    border-radius: 3px;
+    word-break: break-all;
+    line-height: 1.3;
+} 

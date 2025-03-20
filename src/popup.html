@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pocket Saver</title>
+  <style>
+    body {
+      width: 240px;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    
+    .container {
+      display: none;
+    }
+    
+    .container.active {
+      display: block;
+    }
+    
+    .unauthorized-container {
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .unauthorized-container h2 {
+      color: #ef4056;
+      margin-bottom: 15px;
+    }
+    
+    .unauthorized-container p {
+      color: #666;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    
+    .unauthorized-container .button {
+      background: #ef4056;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+    
+    .unauthorized-container .button:hover {
+      background: #d03a4c;
+    }
+    
+    .unauthorized-container .features-list {
+      text-align: left;
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .unauthorized-container .features-list h3 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    
+    .unauthorized-container .features-list ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .unauthorized-container .features-list li {
+      color: #666;
+      margin-bottom: 8px;
+      padding-left: 24px;
+      position: relative;
+      line-height: 1.4;
+    }
+    
+    .unauthorized-container .features-list li:before {
+      content: "";
+      color: #ef4056;
+      position: absolute;
+      left: 0;
+      width: 16px;
+      height: 16px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ef4056'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    
+    .header {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header img {
+      width: 24px;
+      height: 24px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+    }
+    .url {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+    .tags-container {
+      margin-bottom: 12px;
+    }
+    .tags-label {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    .tags-input-container {
+      position: relative;
+      width: 100%;
+    }
+    .tags-input {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .tag-suggestions-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+      margin-top: 4px;
+    }
+    .tag-suggestions-dropdown.visible {
+      display: block !important;
+    }
+    .tag-suggestion {
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      border-bottom: 1px solid #eee;
+    }
+    .tag-suggestion:last-child {
+      border-bottom: none;
+    }
+    .tag-suggestion:hover,
+    .tag-suggestion.selected {
+      background-color: #f5f5f5;
+    }
+    .selected-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .selected-tag {
+      background-color: #ef4056;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .remove-tag {
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    .remove-tag:hover {
+      opacity: 1;
+    }
+    .save-button {
+      width: 100%;
+      padding: 8px;
+      background-color: #ef4056;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.2s ease;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .save-button input[type="checkbox"] {
+      display: none !important;
+    }
+    .save-button:hover {
+      background-color: #d03a4c;
+    }
+    .save-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    button {
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    #status {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+    #status.success {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
+    #status.error {
+      background-color: #fdecea;
+      color: #d32f2f;
+      border: 1px solid #ffcdd2;
+    }
+    #status.info {
+      background-color: #e3f2fd;
+      color: #1976d2;
+      border: 1px solid #bbdefb;
+    }
+    #status.warning {
+      background-color: #fff3e0;
+      color: #f57c00;
+      border: 1px solid #ffe0b2;
+    }
+    .loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .loading.visible {
+      display: flex;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .dev-mode-toggle {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .dev-console {
+      display: none;
+      margin-top: 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f8f9fa;
+      padding: 12px;
+    }
+    .dev-console.visible {
+      display: block;
+    }
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .console-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+    }
+    .clear-console {
+      font-size: 12px;
+      color: #ef4056;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .clear-console:hover {
+      background: #fff;
+    }
+    .console-messages {
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .console-message {
+      margin-bottom: 4px;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .console-message.log {
+      color: #333;
+    }
+    .console-message.error {
+      color: #ef4056;
+      background: #fff5f5;
+    }
+    .console-message.warn {
+      color: #f59e0b;
+      background: #fff7ed;
+    }
+    .timestamp {
+      color: #999;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="unauthorizedContainer" class="container unauthorized-container">
+    <h2>Connect to Pocket</h2>
+    <p>Connect your Pocket account to start saving articles with custom tags.</p>
+    <button id="connectButton" class="button">Connect to Pocket</button>
+    <div class="features-list">
+      <h3>Features</h3>
+      <ul>
+        <li>Save articles with custom tags</li>
+        <li>Smart tag suggestions based on your Pocket library</li>
+        <li>Quick keyboard shortcuts</li>
+        <li>Sync tags across devices</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="mainContainer" class="container">
+    <div class="url"></div>
+    <div class="tags-container">
+      <div class="tags-label">Add tags (optional)</div>
+      <div class="tags-input-container">
+        <input type="text" class="tags-input" placeholder="Type to add tags...">
+        <div class="tag-suggestions-dropdown"></div>
+      </div>
+      <div class="selected-tags"></div>
+    </div>
+    <button class="save-button">
+      <span class="spinner"></span>
+      Save to Pocket
+    </button>
+    <div id="status"></div>
+  </div>
+
+  <div class="dev-mode-toggle">
+    <input type="checkbox" id="devModeToggle">
+    <label for="devModeToggle">Developer Mode</label>
+  </div>
+
+  <div id="devConsole" class="dev-console">
+    <div class="console-header">
+      <span class="console-title">Developer Console</span>
+      <button id="clearConsole" class="clear-console">Clear</button>
+    </div>
+    <div id="consoleMessages" class="console-messages"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> 
