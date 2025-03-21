@@ -220,6 +220,28 @@
         </div>
 
         <div class="option-group">
+            <div class="option-title">Tab Cache</div>
+            <div class="option-description">
+                Cache tab information to reduce API calls to Pocket
+            </div>
+            <div class="toggle-container">
+                <label class="toggle">
+                    <input type="checkbox" id="tabCacheToggle">
+                    <span class="slider"></span>
+                </label>
+                <span id="tabCacheStatus">Disabled</span>
+            </div>
+        </div>
+
+        <div class="rate-limit-explanation">
+            <p class="rate-limit-info">
+                <strong>Note about rate limits:</strong> The tag suggestions feature is limited to 20 API calls per hour due to Pocket's API rate limits. 
+                This means that after 20 calls in an hour, new tag suggestions will only be fetched when the rate limit resets. 
+                While tab cache is not strictly limited, it's good to keep in mind that all Pocket API calls count towards this limit.
+            </p>
+        </div>
+
+        <div class="option-group">
             <div class="option-title">Developer Mode</div>
             <div class="option-description">
                 Show developer tools and console in the popup interface.

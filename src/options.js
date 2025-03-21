@@ -11,70 +11,9 @@ const STORAGE_KEYS = {
     USERNAME: 'username',
     LAST_SYNC_OFFSET: 'pocket_last_sync_offset',
     KEYBOARD_SHORTCUT: 'keyboard_shortcut',
-    DEV_MODE_ENABLED: 'dev_mode_enabled'
+    DEV_MODE_ENABLED: 'dev_mode_enabled',
+    TAB_CACHE_ENABLED: 'tab_cache_enabled'
 };
-
-// Get request token from Pocket
-async function getRequestToken() {
-    try {
-        console.log('Requesting token with redirect URI:', POCKET_REDIRECT_URI);
-        const response = await fetch('https://getpocket.com/v3/oauth/request', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                consumer_key: POCKET_CONSUMER_KEY,
-                redirect_uri: POCKET_REDIRECT_URI
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Request token response not OK:', response.status, errorText);
-            throw new Error(`Failed to get request token: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('Received request token:', data.code);
-        return data.code;
-    } catch (error) {
-        console.error('Error getting request token:', error);
-        throw error;
-    }
-}
-
-// Get access token from Pocket
-async function getAccessToken(requestToken) {
-    try {
-        console.log('Requesting access token with code:', requestToken);
-        const response = await fetch('https://getpocket.com/v3/oauth/authorize', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                consumer_key: POCKET_CONSUMER_KEY,
-                code: requestToken
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Access token response not OK:', response.status, errorText);
-            throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('Received access token');
-        return data.access_token;
-    } catch (error) {
-        console.error('Error getting access token:', error);
-        throw error;
-    }
-}
 
 // Get stored access token
 async function getStoredAccessToken() {
@@ -82,13 +21,6 @@ async function getStoredAccessToken() {
         chrome.storage.local.get([STORAGE_KEYS.ACCESS_TOKEN], (result) => {
             resolve(result[STORAGE_KEYS.ACCESS_TOKEN]);
         });
-    });
-}
-
-// Store access token
-async function storeAccessToken(token) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.ACCESS_TOKEN]: token }, resolve);
     });
 }
 
@@ -193,29 +125,12 @@ async function connectToPocket() {
         statusDiv.textContent = 'Connecting...';
         statusDiv.className = 'status disconnected';
         
-        // Get request token
-        const requestToken = await getRequestToken();
+        // Start auth flow through background script
+        const response = await chrome.runtime.sendMessage({ type: 'START_AUTH' });
         
-        // Open Pocket authorization page
-        const authUrl = `https://getpocket.com/auth/authorize?request_token=${requestToken}&redirect_uri=${encodeURIComponent(POCKET_REDIRECT_URI)}`;
-        console.log('Launching auth flow with URL:', authUrl);
-        
-        const redirectUrl = await chrome.identity.launchWebAuthFlow({
-            url: authUrl,
-            interactive: true
-        });
-        
-        if (!redirectUrl) {
-            throw new Error('Authorization flow was cancelled or failed');
+        if (!response.success) {
+            throw new Error(response.error);
         }
-        
-        console.log('Received redirect URL:', redirectUrl);
-        
-        // Get access token
-        const accessToken = await getAccessToken(requestToken);
-        
-        // Store the access token
-        await storeAccessToken(accessToken);
         
         // Update UI
         updateConnectionStatus();
@@ -266,6 +181,22 @@ async function getDevModeEnabled() {
 async function setDevModeEnabled(enabled) {
     return new Promise((resolve) => {
         chrome.storage.local.set({ [STORAGE_KEYS.DEV_MODE_ENABLED]: enabled }, resolve);
+    });
+}
+
+// Get tab cache enabled preference
+async function getTabCacheEnabled() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE_ENABLED], (result) => {
+            resolve(result[STORAGE_KEYS.TAB_CACHE_ENABLED] ?? false);
+        });
+    });
+}
+
+// Store tab cache enabled preference
+async function setTabCacheEnabled(enabled) {
+    return new Promise((resolve) => {
+        chrome.storage.local.set({ [STORAGE_KEYS.TAB_CACHE_ENABLED]: enabled }, resolve);
     });
 }
 
@@ -349,100 +280,41 @@ document.addEventListener('DOMContentLoaded', async function() {
         devModeStatus.textContent = enabled ? 'Enabled' : 'Disabled';
     });
     
+    // Setup tab cache toggle
+    const tabCacheToggle = document.getElementById('tabCacheToggle');
+    const tabCacheStatus = document.getElementById('tabCacheStatus');
+    
+    // Load initial state
+    const tabCacheEnabled = await getTabCacheEnabled();
+    tabCacheToggle.checked = tabCacheEnabled;
+    tabCacheStatus.textContent = tabCacheEnabled ? 'Enabled' : 'Disabled';
+    
+    // Handle toggle change
+    tabCacheToggle.addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        await setTabCacheEnabled(enabled);
+        
+        if (enabled) {
+            // Trigger cache initialization when enabled
+            chrome.runtime.sendMessage({ type: 'INITIALIZE_TAB_CACHE' });
+        } else {
+            // Clear cache when disabled
+            await chrome.storage.local.remove([STORAGE_KEYS.TAB_CACHE]);
+        }
+    });
+    
     // Update connection status
     updateConnectionStatus();
-});
-
-// Check authorization state and show appropriate container
-async function checkAuthorization() {
-    const unauthorizedContainer = document.getElementById('unauthorizedContainer');
-    const mainContainer = document.getElementById('mainContainer');
-    const connectButton = document.getElementById('connectButton');
     
-    try {
-        const { access_token } = await chrome.storage.local.get([STORAGE_KEYS.ACCESS_TOKEN]);
-        
-        if (!access_token) {
-            unauthorizedContainer.classList.add('active');
-            mainContainer.classList.remove('active');
-            
-            // Handle connect button click
-            connectButton.addEventListener('click', async () => {
-                try {
-                    // Show loading state
-                    connectButton.disabled = true;
-                    connectButton.textContent = 'Connecting...';
-                    
-                    const response = await fetch('https://getpocket.com/v3/oauth/request', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            consumer_key: POCKET_CONSUMER_KEY,
-                            redirect_uri: POCKET_REDIRECT_URI
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    console.log('Request token response:', data);
-                    
-                    if (!data.code) {
-                        throw new Error('No request token received');
-                    }
-                    
-                    const requestToken = data.code;
-                    
-                    // Store request token temporarily
-                    await chrome.storage.local.set({ request_token: requestToken });
-                    
-                    // Open auth page in a new tab
-                    const authUrl = `https://getpocket.com/auth/authorize?request_token=${requestToken}&redirect_uri=${encodeURIComponent(POCKET_REDIRECT_URI)}`;
-                    const authTab = await chrome.tabs.create({ url: authUrl });
-                    
-                    // Listen for the auth completion message from the background script
-                    chrome.runtime.onMessage.addListener(function authListener(message, sender, sendResponse) {
-                        if (message.type === 'AUTH_COMPLETE') {
-                            // Remove the listener
-                            chrome.runtime.onMessage.removeListener(authListener);
-                            
-                            // Close the auth tab
-                            chrome.tabs.remove(authTab.id);
-                            
-                            // Update UI
-                            unauthorizedContainer.classList.remove('active');
-                            mainContainer.classList.add('active');
-                            initializeMainUI();
-                            
-                            // Show success message
-                            showStatus('Successfully connected to Pocket!', 'success');
-                        } else if (message.type === 'AUTH_ERROR') {
-                            // Handle error
-                            console.error('Auth error:', message.error);
-                            connectButton.disabled = false;
-                            connectButton.textContent = 'Connect to Pocket';
-                            showStatus(`Failed to connect to Pocket: ${message.error}`, 'error');
-                        }
-                    });
-                } catch (error) {
-                    console.error('Error initiating auth:', error);
-                    connectButton.disabled = false;
-                    connectButton.textContent = 'Connect to Pocket';
-                    showStatus(`Failed to connect to Pocket: ${error.message}`, 'error');
-                }
-            });
-        } else {
-            unauthorizedContainer.classList.remove('active');
-            mainContainer.classList.add('active');
-            initializeMainUI();
+    // Listen for auth completion messages
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.type === 'AUTH_COMPLETE') {
+            updateConnectionStatus();
+        } else if (message.type === 'AUTH_ERROR') {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.textContent = `Connection failed: ${message.error}`;
+            statusDiv.className = 'status disconnected';
+            alert(`Failed to connect to Pocket: ${message.error}`);
         }
-    } catch (error) {
-        console.error('Error checking authorization:', error);
-        showStatus('Error checking authorization status.', 'error');
-    }
-} 
+    });
+}); 

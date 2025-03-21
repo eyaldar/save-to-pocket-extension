@@ -20,7 +20,8 @@ const STORAGE_KEYS = {
     REQUEST_TOKEN: 'request_token',
     POPUP_CLOSE_INTERVAL: 'popup_close_interval',
     DEV_MODE_ENABLED: 'dev_mode_enabled',
-    TAB_CACHE: 'tab_cache'
+    TAB_CACHE: 'tab_cache',
+    TAB_CACHE_ENABLED: 'tab_cache_enabled'  // New key for tab cache feature
 };
 
 // Cache duration in milliseconds (5 hours)
@@ -164,6 +165,15 @@ async function getTagSuggestionsEnabled() {
     return new Promise((resolve) => {
         chrome.storage.local.get([STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED], (result) => {
             resolve(result[STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED] ?? false);
+        });
+    });
+}
+
+// Get tab cache enabled preference
+async function getTabCacheEnabled() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE_ENABLED], (result) => {
+            resolve(result[STORAGE_KEYS.TAB_CACHE_ENABLED] ?? false);
         });
     });
 }
@@ -583,120 +593,64 @@ async function saveToPocket(url, title, tags) {
 
 // Check authorization state and show appropriate container
 async function checkAuthorization() {
+    console.log('[Popup] Starting authorization check...');
     const unauthorizedContainer = document.getElementById('unauthorizedContainer');
     const mainContainer = document.getElementById('mainContainer');
     const connectButton = document.getElementById('connectButton');
     
     try {
+        console.log('[Popup] Checking for access token...');
         const { access_token } = await chrome.storage.local.get([STORAGE_KEYS.ACCESS_TOKEN]);
+        console.log('[Popup] Access token status:', access_token ? 'Found' : 'Not found');
         
         if (!access_token) {
+            console.log('[Popup] No access token found, showing unauthorized container');
             unauthorizedContainer.classList.add('active');
             mainContainer.classList.remove('active');
             
             // Handle connect button click
             connectButton.addEventListener('click', async () => {
                 try {
+                    console.log('[Popup] Connect button clicked');
                     // Show loading state
                     connectButton.disabled = true;
                     connectButton.textContent = 'Connecting...';
                     
-                    console.log('Requesting token from Pocket...');
-                    const response = await fetch('https://getpocket.com/v3/oauth/request', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            consumer_key: POCKET_CONSUMER_KEY,
-                            redirect_uri: POCKET_REDIRECT_URI
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                    // Start auth flow through background script
+                    const response = await chrome.runtime.sendMessage({ type: 'START_AUTH' });
+                    
+                    if (!response.success) {
+                        throw new Error(response.error);
                     }
                     
-                    const data = await response.json();
-                    console.log('Request token response:', data);
+                    // Update UI
+                    unauthorizedContainer.classList.remove('active');
+                    mainContainer.classList.add('active');
+                    initializeMainUI();
                     
-                    if (!data.code) {
-                        throw new Error('No request token received');
-                    }
+                    // Show success message
+                    showStatus('Successfully connected to Pocket!', 'success');
                     
-                    const requestToken = data.code;
-                    console.log('Received request token:', requestToken);
-                    
-                    // Store request token temporarily using the correct storage key
-                    await new Promise((resolve) => {
-                        chrome.storage.local.set({ [STORAGE_KEYS.REQUEST_TOKEN]: requestToken }, () => {
-                            console.log('Stored request token in storage');
-                            resolve();
-                        });
-                    });
-                    
-                    // Verify the token was stored
-                    const storedToken = await new Promise((resolve) => {
-                        chrome.storage.local.get([STORAGE_KEYS.REQUEST_TOKEN], (result) => {
-                            console.log('Verifying stored token:', result[STORAGE_KEYS.REQUEST_TOKEN]);
-                            resolve(result[STORAGE_KEYS.REQUEST_TOKEN]);
-                        });
-                    });
-                    
-                    if (!storedToken) {
-                        throw new Error('Failed to store request token');
-                    }
-                    
-                    // Open auth page in a new tab
-                    const authUrl = `https://getpocket.com/auth/authorize?request_token=${requestToken}&redirect_uri=${encodeURIComponent(POCKET_REDIRECT_URI)}`;
-                    console.log('Opening auth URL:', authUrl);
-                    const authTab = await chrome.tabs.create({ url: authUrl });
-                    
-                    // Listen for the auth completion message from the background script
-                    chrome.runtime.onMessage.addListener(function authListener(message, sender, sendResponse) {
-                        if (message.type === 'AUTH_COMPLETE') {
-                            // Remove the listener
-                            chrome.runtime.onMessage.removeListener(authListener);
-                            
-                            // Close the auth tab
-                            chrome.tabs.remove(authTab.id);
-                            
-                            // Update UI
-                            unauthorizedContainer.classList.remove('active');
-                            mainContainer.classList.add('active');
-                            initializeMainUI();
-                            
-                            // Show success message
-                            showStatus('Successfully connected to Pocket!', 'success');
-                            
-                            // Close the popup after a short delay
-                            setTimeout(() => {
-                                window.close();
-                            }, 1500);
-                        } else if (message.type === 'AUTH_ERROR') {
-                            // Handle error
-                            console.error('Auth error:', message.error);
-                            connectButton.disabled = false;
-                            connectButton.textContent = 'Connect to Pocket';
-                            showStatus(`Failed to connect to Pocket: ${message.error}`, 'error');
-                        }
-                    });
+                    // Wait a bit longer before closing to ensure the user sees the success message
+                    setTimeout(() => {
+                        window.close();
+                    }, 3000);
                 } catch (error) {
-                    console.error('Error during authorization:', error);
+                    console.error('[Popup] Error during authorization:', error);
                     connectButton.disabled = false;
                     connectButton.textContent = 'Connect to Pocket';
                     showStatus(`Failed to connect to Pocket: ${error.message}`, 'error');
                 }
             });
         } else {
+            console.log('[Popup] Access token found, showing main container');
             // Already authorized, show main container
             unauthorizedContainer.classList.remove('active');
             mainContainer.classList.add('active');
             initializeMainUI();
         }
     } catch (error) {
-        console.error('Error checking authorization:', error);
+        console.error('[Popup] Error checking authorization:', error);
         showStatus('Error checking authorization status', 'error');
     }
 }
@@ -1066,6 +1020,27 @@ async function getCurrentTabInfo() {
         }
         console.log('[Popup] Current tab:', { url: tab.url, title: tab.title });
 
+        // Check if tab cache is enabled
+        const tabCacheEnabled = await getTabCacheEnabled();
+        if (!tabCacheEnabled) {
+            console.log('[Popup] Tab cache is disabled, fetching fresh data');
+            const accessToken = await getStoredAccessToken();
+            let pocketStatus = null;
+            
+            if (accessToken) {
+                console.log('[Popup] Checking Pocket status...');
+                pocketStatus = await checkPocketItemStatus(accessToken, tab.url);
+                console.log('[Popup] Pocket status result:', pocketStatus);
+            }
+            
+            return {
+                url: tab.url,
+                title: tab.title,
+                pocketStatus: pocketStatus,
+                fromCache: false
+            };
+        }
+
         // Get tab cache
         console.log('[Popup] Fetching tab cache...');
         const cache = await new Promise((resolve) => {
@@ -1144,8 +1119,8 @@ async function checkPocketItemStatus(accessToken, url) {
             body: JSON.stringify({
                 consumer_key: POCKET_CONSUMER_KEY,
                 access_token: accessToken,
-                url: url,
-                count: 1,
+                url,
+                count: 100,  // Fetch 100 items
                 detailType: 'complete'  // Get full item details including tags
             })
         });
@@ -1157,15 +1132,21 @@ async function checkPocketItemStatus(accessToken, url) {
 
         const data = await response.json();
         const items = Object.values(data.list || {});
-        if (items.length > 0) {
-            const item = items[0];
+        
+        // Find the item that matches our URL
+        const matchingItem = items.find(item => {
+            return normalizeUrl(item.resolved_url) === normalizeUrl(url) || normalizeUrl(item.given_url) === normalizeUrl(url);
+        });
+
+        if (matchingItem) {
             return {
                 exists: true,
                 timestamp: Date.now(),
-                tags: item.tags ? Object.keys(item.tags) : [],
-                title: item.resolved_title || item.given_title
+                tags: matchingItem.tags ? Object.keys(matchingItem.tags) : [],
+                title: matchingItem.resolved_title || matchingItem.given_title
             };
         }
+
         return {
             exists: false,
             timestamp: Date.now(),

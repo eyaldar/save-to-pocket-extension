@@ -1,10 +1,10 @@
-# Pocket Saver Chrome Extension
+# Save to Pocket Chrome Extension
 
 A Chrome extension that allows you to save web pages to Pocket with tag support. The extension provides a streamlined interface for saving and tagging articles, with smart tag suggestions based on your existing Pocket tags.
 
 ## Features
 
-- **Quick Save**: Save the current page to Pocket with one click
+- **Quick Save**: Save the current page to Pocket with one click or keyboard shortcut
 - **Smart Tag Suggestions**: 
   - Suggests tags based on your existing Pocket tags
   - Shows domain-based suggestions
@@ -23,7 +23,8 @@ A Chrome extension that allows you to save web pages to Pocket with tag support.
   - Customizable keyboard shortcuts
 - **Background Sync**: Automatically syncs tags with Pocket every 5 hours
 - **Developer Mode**: Built-in console for debugging and development
-- **Tab Caching**: Efficient caching of tab information
+- **Tab Caching**: Efficient caching of tab information to reduce API calls
+- **Rate Limit Management**: Smart handling of Pocket's API rate limits
 - **Error Handling**: Comprehensive error states and user feedback
 - **Status Notifications**: Visual feedback for all operations
 - **Responsive Design**: Modern UI with consistent styling
@@ -63,10 +64,22 @@ Note: Currently, the extension is in development mode. A production build proces
    - Set popup auto-close timing
    - Configure keyboard shortcuts
    - Toggle developer mode
+   - Enable/disable tab cache
+
+### Rate Limits and Caching
+
+The extension implements smart handling of Pocket's API rate limits:
+
+- **Tag Suggestions**: Limited to 20 API calls per hour
+- **Tab Cache**: 
+  - Caches tab information to reduce API calls
+  - Cache is automatically invalidated after 5 hours
+  - While not strictly limited, all API calls count towards the rate limit
 
 ## Development
 
 ### Project Structure
+
 ```
 pocket-chrome-extension/
 ├── src/                    # Extension source files
