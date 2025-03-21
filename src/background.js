@@ -1,83 +1,28 @@
-// OAuth configuration
-const POCKET_CONSUMER_KEY = '114159-ad4865edea00db98dbb760e';
-const POCKET_REDIRECT_URI = chrome.identity.getRedirectURL();
 
-// Storage keys
-const STORAGE_KEYS = {
-    TAGS: 'pocket_tags',
-    TAGS_LAST_FETCH: 'pocket_tags_last_fetch',
-    TAG_SUGGESTIONS_ENABLED: 'tag_suggestions_enabled',
-    ACCESS_TOKEN: 'access_token',
-    USERNAME: 'username',
-    LAST_SYNC_OFFSET: 'pocket_last_sync_offset',
-    KEYBOARD_SHORTCUT: 'keyboard_shortcut',
-    REQUEST_TOKEN: 'request_token',
-    TAB_CACHE: 'tab_cache',
-    POPUP_CLOSE_INTERVAL: 'popup_close_interval',
-    DEV_MODE_ENABLED: 'dev_mode_enabled',
-    TAB_CACHE_ENABLED: 'tab_cache_enabled'
-};
-
-// Authorization functions
-async function getRequestToken() {
-    try {
-        console.log('[Background] Requesting token with redirect URI:', POCKET_REDIRECT_URI);
-        const response = await fetch('https://getpocket.com/v3/oauth/request', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                consumer_key: POCKET_CONSUMER_KEY,
-                redirect_uri: POCKET_REDIRECT_URI
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Background] Request token response not OK:', response.status, errorText);
-            throw new Error(`Failed to get request token: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('[Background] Received request token:', data.code);
-        return data.code;
-    } catch (error) {
-        console.error('[Background] Error getting request token:', error);
-        throw error;
-    }
-}
-
-async function getAccessToken(requestToken) {
-    try {
-        console.log('[Background] Requesting access token with code:', requestToken);
-        const response = await fetch('https://getpocket.com/v3/oauth/authorize', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                consumer_key: POCKET_CONSUMER_KEY,
-                code: requestToken
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Background] Access token response not OK:', response.status, errorText);
-            throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('[Background] Received access token');
-        return data.access_token;
-    } catch (error) {
-        console.error('[Background] Error getting access token:', error);
-        throw error;
-    }
-}
+import { 
+    CACHE_DURATION,
+    MAX_CALLS_PER_HOUR,
+    RATE_LIMIT_WINDOW,
+    MIN_SYNC_INTERVAL 
+} from './constants.js';
+import { 
+    getStoredAccessToken, 
+    getStoredTags, 
+    getTagSuggestionsEnabled, 
+    getTabCacheEnabled, 
+    storeTags, 
+    storeTabCache,
+    getTabCache,
+    setAccessToken,
+    getKeyboardShortcut,
+    removeKeyboardShortcut
+} from './localStorage.js';
+import { 
+    fetchAllTagsWithToken, 
+    getAccessToken, 
+    handleAuthRequest, 
+    checkPocketItemStatus
+} from './pocketApi.js';
 
 // Message handler for authorization requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -87,68 +32,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-async function handleAuthRequest(sender, sendResponse) {
-    try {
-        // Get request token
-        const requestToken = await getRequestToken();
-        
-        // Store request token temporarily
-        await chrome.storage.local.set({ [STORAGE_KEYS.REQUEST_TOKEN]: requestToken });
-        
-        // Open Pocket authorization page
-        const authUrl = `https://getpocket.com/auth/authorize?request_token=${requestToken}&redirect_uri=${encodeURIComponent(POCKET_REDIRECT_URI)}`;
-        console.log('[Background] Launching auth flow with URL:', authUrl);
-        
-        const redirectUrl = await chrome.identity.launchWebAuthFlow({
-            url: authUrl,
-            interactive: true
-        });
-        
-        if (!redirectUrl) {
-            throw new Error('Authorization flow was cancelled or failed');
-        }
-        
-        console.log('[Background] Received redirect URL:', redirectUrl);
-        
-        // Get access token
-        const accessToken = await getAccessToken(requestToken);
-        
-        // Store the access token
-        await chrome.storage.local.set({ [STORAGE_KEYS.ACCESS_TOKEN]: accessToken });
-        
-        // Clear request token
-        await chrome.storage.local.remove([STORAGE_KEYS.REQUEST_TOKEN]);
-        
-        // Send success response
-        sendResponse({ success: true, accessToken });
-        
-        // Broadcast auth completion
-        chrome.runtime.sendMessage({
-            type: 'AUTH_COMPLETE',
-            accessToken: accessToken
-        });
-    } catch (error) {
-        console.error('[Background] Error during auth:', error);
-        sendResponse({ success: false, error: error.message });
-        
-        // Broadcast auth error
-        chrome.runtime.sendMessage({
-            type: 'AUTH_ERROR',
-            error: error.message
-        });
-    }
-}
-
-// Cache duration in milliseconds (5 hours)
-const CACHE_DURATION = 5 * 60 * 60 * 1000;  // 5 hours in milliseconds
-
 // Flag to track if sync is in progress
 let isSyncing = false;
-
-// Rate limiting configuration
-const MAX_CALLS_PER_HOUR = 20;
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
-const MIN_SYNC_INTERVAL = RATE_LIMIT_WINDOW / MAX_CALLS_PER_HOUR; // Minimum time between syncs
 
 // Track API calls for rate limiting
 let apiCallTimestamps = [];
@@ -225,74 +110,13 @@ async function initializeServiceWorker() {
     }
 }
 
-// Check if an item exists in Pocket
-async function checkPocketItemStatus(accessToken, url) {
-    try {
-        console.log('[Background] Checking Pocket status for:', url);
-        const response = await fetch('https://getpocket.com/v3/get', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                consumer_key: POCKET_CONSUMER_KEY,
-                access_token: accessToken,
-                url: url,
-                count: 10,  // Increased from 1 to 10 to check more items
-                detailType: 'complete'  // Get full item details including tags
-            })
-        });
-
-        if (!response.ok) {
-            console.error('[Background] Failed to check Pocket status:', response.status);
-            return null;
-        }
-
-        const data = await response.json();
-        const items = Object.values(data.list || {});
-        
-        // Check all items for a URL match
-        for (const item of items) {
-            if (item.resolved_url === url || item.given_url === url) {
-                console.log('[Background] Found matching item in Pocket:', {
-                    url,
-                    resolved_url: item.resolved_url,
-                    given_url: item.given_url
-                });
-                return {
-                    exists: true,
-                    timestamp: Date.now(),
-                    tags: item.tags ? Object.keys(item.tags) : [],
-                    title: item.resolved_title || item.given_title,
-                    item_id: item.item_id
-                };
-            }
-        }
-        
-        console.log('[Background] No matching item found in Pocket for URL:', url);
-        return null;
-    } catch (error) {
-        console.error('[Background] Error checking Pocket status:', error);
-        return null;
-    }
-}
-
-// Get tab cache enabled status
-async function isTabCacheEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE_ENABLED], (result) => {
-            resolve(result[STORAGE_KEYS.TAB_CACHE_ENABLED] ?? false);
-        });
-    });
-}
 
 // Initialize tab cache
 async function initializeTabCache() {
     console.log('[Background] Starting tab cache initialization...');
     try {
         // Check if tab cache is enabled
-        const enabled = await isTabCacheEnabled();
+        const enabled = await getTabCacheEnabled();
         if (!enabled) {
             console.log('[Background] Tab cache is disabled, skipping initialization');
             return;
@@ -328,37 +152,12 @@ async function initializeTabCache() {
     }
 }
 
-// Get tab cache
-async function getTabCache() {
-    return new Promise(async (resolve) => {
-        // First check if tab cache is enabled
-        const enabled = await isTabCacheEnabled();
-        if (!enabled) {
-            console.log('[Background] Tab cache is disabled, returning empty cache');
-            resolve({});
-            return;
-        }
-
-        // If enabled, get the cache
-        chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE], (result) => {
-            resolve(result[STORAGE_KEYS.TAB_CACHE] || {});
-        });
-    });
-}
-
-// Store tab cache
-async function storeTabCache(cache) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.TAB_CACHE]: cache }, resolve);
-    });
-}
-
 // Update tab in cache
 async function updateTabInCache(tab) {
     console.log('[Background] Updating tab in cache:', tab.url);
     try {
         // Check if tab cache is enabled
-        const enabled = await isTabCacheEnabled();
+        const enabled = await getTabCacheEnabled();
         if (!enabled) {
             console.log('[Background] Tab cache is disabled, skipping update');
             return;
@@ -391,18 +190,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     console.log('[Background] Tab closed:', tabId);
     try {
         // Check if tab cache is enabled
-        const enabled = await isTabCacheEnabled();
+        const enabled = await getTabCacheEnabled();
         if (!enabled) {
             console.log('[Background] Tab cache is disabled, skipping removal');
             return;
         }
 
         // Get the tab cache
-        const cache = await new Promise((resolve) => {
-            chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE], (result) => {
-                resolve(result[STORAGE_KEYS.TAB_CACHE] || {});
-            });
-        });
+        const cache = await getTabCache();
 
         // Get the tab URL before it's removed
         const tab = await chrome.tabs.get(tabId).catch(() => null);
@@ -418,9 +213,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
         delete updatedCache[tab.url];
         
         // Update the cache
-        await new Promise((resolve) => {
-            chrome.storage.local.set({ [STORAGE_KEYS.TAB_CACHE]: updatedCache }, resolve);
-        });
+        await storeTabCache(updatedCache);
         console.log('[Background] Tab removed from cache successfully');
     } catch (error) {
         console.error('[Background] Error removing tab from cache:', error);
@@ -453,7 +246,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
             }
 
             // Store access token
-            await storeAccessToken(accessToken);
+            await setAccessToken(accessToken);
             console.log('[Background] Access token stored successfully');
 
             // Get username
@@ -486,13 +279,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     }
 });
 
-// Store access token
-async function storeAccessToken(token) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.ACCESS_TOKEN]: token }, resolve);
-    });
-}
-
 // Message handling
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'GET_TAB_INFO') {
@@ -503,183 +289,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-// Get stored access token
-async function getStoredAccessToken() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.ACCESS_TOKEN], (result) => {
-            resolve(result[STORAGE_KEYS.ACCESS_TOKEN]);
-        });
-    });
-}
-
-// Fetch tags using an access token
-async function fetchTagsWithToken(accessToken) {
-    try {
-        const tags = new Set();
-        let offset = 0;
-        const count = 100; // Maximum allowed by Pocket API
-        let hasMore = true;
-        let consecutiveErrors = 0;
-        const MAX_CONSECUTIVE_ERRORS = 3;
-        const BATCH_PAUSE = 2000; // 2 second pause between batches
-        const ERROR_PAUSE = 30000; // 30 second pause after rate limit error
-
-        // Try to resume from last offset
-        const lastOffset = await new Promise((resolve) => {
-            chrome.storage.local.get([STORAGE_KEYS.LAST_SYNC_OFFSET], (result) => {
-                resolve(result[STORAGE_KEYS.LAST_SYNC_OFFSET] || 0);
-            });
-        });
-
-        // If we have a last offset, try to get existing tags
-        if (lastOffset > 0) {
-            const { tags: existingTags } = await getStoredTags();
-            if (existingTags && existingTags.length > 0) {
-                existingTags.forEach(tag => tags.add(tag));
-                console.log(`Resuming sync with ${tags.size} existing tags`);
-            }
-        }
-
-        offset = lastOffset;
-
-        while (hasMore) {
-            try {
-                console.log(`Fetching Pocket items (offset: ${offset})...`);
-                const response = await fetch('https://getpocket.com/v3/get', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json; charset=UTF-8',
-                        'X-Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        consumer_key: POCKET_CONSUMER_KEY,
-                        access_token: accessToken,
-                        count: count,
-                        offset: offset,
-                        detailType: 'complete'  // Get full item details including tags
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Failed to fetch tags from Pocket, status:', response.status);
-                    console.error('Error response:', errorText);
-
-                    // Check if it's a rate limit error
-                    if (response.status === 429 || errorText.includes('rate limit')) {
-                        console.log('Rate limit hit, pausing for 30 seconds...');
-                        await new Promise(resolve => setTimeout(resolve, ERROR_PAUSE));
-                        continue; // Retry the same batch
-                    }
-
-                    throw new Error(`Failed to fetch tags from Pocket: ${response.status} ${errorText}`);
-                }
-
-                const data = await response.json();
-                
-                // Extract unique tags from current batch of items
-                if (data && data.list) {
-                    Object.values(data.list).forEach(item => {
-                        if (item.tags) {
-                            Object.keys(item.tags).forEach(tag => {
-                                tags.add(tag);
-                            });
-                        }
-                    });
-
-                    // Save intermediate results
-                    await storeTags(Array.from(tags));
-                    await new Promise((resolve) => {
-                        chrome.storage.local.set({
-                            [STORAGE_KEYS.LAST_SYNC_OFFSET]: offset + count
-                        }, resolve);
-                    });
-
-                    // Reset consecutive errors on success
-                    consecutiveErrors = 0;
-                }
-
-                // Check if we have more items to fetch
-                hasMore = data && data.list && Object.keys(data.list).length === count;
-                offset += count;
-
-                // Add a pause between batches to avoid rate limits
-                if (hasMore) {
-                    console.log(`Pausing for ${BATCH_PAUSE/1000} seconds before next batch...`);
-                    await new Promise(resolve => setTimeout(resolve, BATCH_PAUSE));
-                }
-
-            } catch (error) {
-                console.error('Error in batch:', error);
-                consecutiveErrors++;
-
-                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                    console.log('Too many consecutive errors, stopping sync');
-                    // Save progress before stopping
-                    await storeTags(Array.from(tags));
-                    await new Promise((resolve) => {
-                        chrome.storage.local.set({
-                            [STORAGE_KEYS.LAST_SYNC_OFFSET]: offset
-                        }, resolve);
-                    });
-                    throw new Error('Sync stopped due to too many consecutive errors');
-                }
-
-                // Wait before retrying
-                console.log(`Waiting ${ERROR_PAUSE/1000} seconds before retry...`);
-                await new Promise(resolve => setTimeout(resolve, ERROR_PAUSE));
-            }
-        }
-
-        // Clear the last offset since we're done
-        await new Promise((resolve) => {
-            chrome.storage.local.remove([STORAGE_KEYS.LAST_SYNC_OFFSET], resolve);
-        });
-
-        console.log(`Finished fetching all Pocket items. Found ${tags.size} unique tags.`);
-        return Array.from(tags);
-    } catch (error) {
-        console.error('Error fetching tags:', error);
-        throw error;
-    }
-}
-
-// Get stored tags from Chrome storage
-async function getStoredTags() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.TAGS, STORAGE_KEYS.TAGS_LAST_FETCH], (result) => {
-            resolve({
-                tags: result[STORAGE_KEYS.TAGS] || [],
-                lastFetch: result[STORAGE_KEYS.TAGS_LAST_FETCH] || 0
-            });
-        });
-    });
-}
-
-// Store tags in Chrome storage
-async function storeTags(tags) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({
-            [STORAGE_KEYS.TAGS]: tags,
-            [STORAGE_KEYS.TAGS_LAST_FETCH]: Date.now()
-        }, resolve);
-    });
-}
-
 // Check if we need to sync tags
 async function shouldSyncTags() {
     const { lastFetch } = await getStoredTags();
     const now = Date.now();
     return !lastFetch || (now - lastFetch) > CACHE_DURATION;
-}
-
-// Get tag suggestions enabled status
-async function getTagSuggestionsEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED], (result) => {
-            resolve(result[STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED] ?? false);
-        });
-    });
 }
 
 // Sync tags in the background
@@ -726,7 +340,7 @@ async function syncTags() {
         recordApiCall();
 
         // Fetch and store tags
-        const tags = await fetchTagsWithToken(accessToken);
+        const tags = await fetchAllTagsWithToken(accessToken);
         await storeTags(tags);
         console.log('Background tag sync completed');
     } catch (error) {
@@ -740,13 +354,10 @@ async function syncTags() {
 // Update extension icon tooltip
 async function updateIconTooltip() {
     try {
-        const result = await new Promise((resolve) => {
-            chrome.storage.local.get([STORAGE_KEYS.KEYBOARD_SHORTCUT], resolve);
-        });
+        const keyboardShortcut = await getKeyboardShortcut();
         
-        const customShortcut = result[STORAGE_KEYS.KEYBOARD_SHORTCUT];
-        const tooltip = customShortcut ? 
-            `Save to Pocket (${customShortcut})` : 
+        const tooltip = keyboardShortcut ? 
+            `Save to Pocket (${keyboardShortcut})` : 
             'Save to Pocket';
             
         await chrome.action.setTitle({ title: tooltip });
@@ -759,38 +370,30 @@ async function updateIconTooltip() {
 // Update keyboard shortcut
 async function updateKeyboardShortcut() {
     try {
-        const result = await new Promise((resolve) => {
-            chrome.storage.local.get([STORAGE_KEYS.KEYBOARD_SHORTCUT], resolve);
-        });
+        const keyboardShortcut = await getKeyboardShortcut();
         
-        const customShortcut = result[STORAGE_KEYS.KEYBOARD_SHORTCUT];
-        
-        if (customShortcut) {
+        if (keyboardShortcut) {
             // First check if the shortcut is already in use
             const commands = await new Promise((resolve) => {
                 chrome.commands.getAll(resolve);
             });
             
             const isInUse = commands.some(cmd => 
-                cmd.shortcut === customShortcut && cmd.name !== '_execute_action'
+                cmd.shortcut === keyboardShortcut && cmd.name !== '_execute_action'
             );
             
             if (isInUse) {
                 console.error('Shortcut is already in use by another extension');
                 // Clear the shortcut from storage since it's not usable
-                await new Promise((resolve) => {
-                    chrome.storage.local.remove([STORAGE_KEYS.KEYBOARD_SHORTCUT], resolve);
-                });
+                await removeKeyboardShortcut();
                 return;
             }
             
             // Store the shortcut preference
-            console.log('Stored keyboard shortcut preference:', customShortcut);
+            console.log('Stored keyboard shortcut preference:', keyboardShortcut);
         } else {
             // Clear the shortcut from storage if none is set
-            await new Promise((resolve) => {
-                chrome.storage.local.remove([STORAGE_KEYS.KEYBOARD_SHORTCUT], resolve);
-            });
+            await removeKeyboardShortcut();
             console.log('Cleared keyboard shortcut preference');
         }
         
@@ -800,9 +403,7 @@ async function updateKeyboardShortcut() {
         console.error('Error updating keyboard shortcut:', error);
         // If there's an error, try to clear the shortcut from storage
         try {
-            await new Promise((resolve) => {
-                chrome.storage.local.remove([STORAGE_KEYS.KEYBOARD_SHORTCUT], resolve);
-            });
+            await removeKeyboardShortcut();
         } catch (clearError) {
             console.error('Error clearing shortcut from storage:', clearError);
         }
@@ -935,12 +536,3 @@ chrome.commands.onCommand.addListener(async (command) => {
         // Chrome will automatically open the popup for _execute_action
     }
 });
-
-// Get stored request token
-async function getStoredRequestToken() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.REQUEST_TOKEN], (result) => {
-            resolve(result[STORAGE_KEYS.REQUEST_TOKEN]);
-        });
-    });
-} 

@@ -1,70 +1,18 @@
-// OAuth configuration
-const POCKET_CONSUMER_KEY = '114159-ad4865edea00db98dbb760e';
-const POCKET_REDIRECT_URI = chrome.identity.getRedirectURL();
 
-// Storage keys
-const STORAGE_KEYS = {
-    TAGS: 'pocket_tags',
-    TAGS_LAST_FETCH: 'pocket_tags_last_fetch',
-    TAG_SUGGESTIONS_ENABLED: 'tag_suggestions_enabled',
-    ACCESS_TOKEN: 'access_token',
-    USERNAME: 'username',
-    LAST_SYNC_OFFSET: 'pocket_last_sync_offset',
-    KEYBOARD_SHORTCUT: 'keyboard_shortcut',
-    DEV_MODE_ENABLED: 'dev_mode_enabled',
-    TAB_CACHE_ENABLED: 'tab_cache_enabled'
-};
+import { 
+    getStoredAccessToken, 
+    getTagSuggestionsEnabled, 
+    getCurrentShortcut, 
+    getPopupCloseInterval, 
+    getDevModeEnabled, 
+    getTabCacheEnabled,
+    setTagSuggestionsEnabled,
+    setPopupCloseInterval,
+    setDevModeEnabled,
+    setTabCacheEnabled,
+    removeAccessToken
+} from './localStorage.js';
 
-// Get stored access token
-async function getStoredAccessToken() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.ACCESS_TOKEN], (result) => {
-            resolve(result[STORAGE_KEYS.ACCESS_TOKEN]);
-        });
-    });
-}
-
-// Get stored tag suggestions preference
-async function getTagSuggestionsEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED], (result) => {
-            resolve(result[STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED] ?? false);
-        });
-    });
-}
-
-// Store tag suggestions preference
-async function setTagSuggestionsEnabled(enabled) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.TAG_SUGGESTIONS_ENABLED]: enabled }, resolve);
-    });
-}
-
-// Get stored keyboard shortcut
-async function getStoredShortcut() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.KEYBOARD_SHORTCUT], (result) => {
-            resolve(result[STORAGE_KEYS.KEYBOARD_SHORTCUT] || '');
-        });
-    });
-}
-
-// Store keyboard shortcut
-async function storeShortcut(shortcut) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.KEYBOARD_SHORTCUT]: shortcut }, resolve);
-    });
-}
-
-// Get current keyboard shortcut
-async function getCurrentShortcut() {
-    return new Promise((resolve) => {
-        chrome.commands.getAll((commands) => {
-            const actionCommand = commands.find(cmd => cmd.name === '_execute_action');
-            resolve(actionCommand?.shortcut || '');
-        });
-    });
-}
 
 // Format keyboard shortcut for display
 function formatShortcut(shortcut) {
@@ -146,59 +94,6 @@ async function connectToPocket() {
     }
 }
 
-// Disconnect from Pocket
-async function disconnectFromPocket() {
-    await chrome.storage.local.remove([STORAGE_KEYS.ACCESS_TOKEN]);
-    updateConnectionStatus();
-}
-
-// Get stored popup close interval
-async function getPopupCloseInterval() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(['popup_close_interval'], (result) => {
-            resolve(result.popup_close_interval ?? 3); // Default to 3 seconds
-        });
-    });
-}
-
-// Store popup close interval
-async function setPopupCloseInterval(seconds) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ popup_close_interval: seconds }, resolve);
-    });
-}
-
-// Get developer mode status
-async function getDevModeEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.DEV_MODE_ENABLED], (result) => {
-            resolve(result[STORAGE_KEYS.DEV_MODE_ENABLED] ?? false);
-        });
-    });
-}
-
-// Store developer mode status
-async function setDevModeEnabled(enabled) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.DEV_MODE_ENABLED]: enabled }, resolve);
-    });
-}
-
-// Get tab cache enabled preference
-async function getTabCacheEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get([STORAGE_KEYS.TAB_CACHE_ENABLED], (result) => {
-            resolve(result[STORAGE_KEYS.TAB_CACHE_ENABLED] ?? false);
-        });
-    });
-}
-
-// Store tab cache enabled preference
-async function setTabCacheEnabled(enabled) {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ [STORAGE_KEYS.TAB_CACHE_ENABLED]: enabled }, resolve);
-    });
-}
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async function() {
@@ -318,3 +213,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 }); 
+
+// Disconnect from Pocket
+export async function disconnectFromPocket() {
+    await removeAccessToken();
+    updateConnectionStatus();
+}
