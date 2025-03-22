@@ -1,0 +1,314 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: white;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Force some basic styling to ensure CSS is loaded */
+#root {
+  min-width: 320px;
+  min-height: 300px;
+}
+
+/* Add a specific CSS class we can check for in the browser */
+.css-loaded-indicator {
+  border-top: 3px solid #EF4056;
+}
+
+/* Pocket brand styles */
+.pocket-red {
+  color: #EF4056;
+}
+
+.bg-pocket-red {
+  background-color: #EF4056;
+}
+
+.border-pocket-red {
+  border-color: #EF4056;
+}
+
+.hover-pocket-red:hover {
+  background-color: #D93A4E;
+}
+
+/* Header styles */
+.pocket-header {
+  background-color: #EF4056;
+  color: white;
+  padding: 12px;
+}
+
+/* Button styles */
+.pocket-button {
+  background-color: #EF4056;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pocket-button:hover {
+  background-color: #D93A4E;
+}
+
+.pocket-button:disabled {
+  background-color: #f5a0ab;
+  cursor: not-allowed;
+}
+
+/* Custom spinner animation */
+.spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Status message styles */
+.status-message {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.status-success {
+  background-color: #f0fff4;
+  color: #2f855a;
+  border: 1px solid #c6f6d5;
+}
+
+.status-error {
+  background-color: #fff5f5;
+  color: #c53030;
+  border: 1px solid #fed7d7;
+}
+
+.status-info {
+  background-color: #ebf8ff;
+  color: #2b6cb0;
+  border: 1px solid #bee3f8;
+}
+
+.status-warning {
+  background-color: #fffaf0;
+  color: #c05621;
+  border: 1px solid #feebc8;
+}
+
+/* Console styles */
+.console {
+  background-color: #1a1a1a;
+  color: #f0f0f0;
+  font-family: monospace;
+  padding: 8px;
+  height: 150px;
+  overflow-y: auto;
+  font-size: 12px;
+  border-top: 1px solid #333;
+}
+
+.console-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: #2a2a2a;
+}
+
+.console-message {
+  padding: 2px 0;
+  border-bottom: 1px solid #333;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.console-message.log {
+  color: #f0f0f0;
+}
+
+.console-message.error {
+  color: #ff4545;
+}
+
+.console-message.warn {
+  color: #ffb347;
+}
+
+.timestamp {
+  color: #888;
+  margin-right: 8px;
+}
+
+/* Options page specific styles */
+.options-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.options-heading {
+  color: #EF4056;
+  margin-bottom: 20px;
+}
+
+.options-section {
+  margin: 30px 0 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f0f0;
+  color: #EF4056;
+}
+
+.option-group {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.option-group:hover {
+  background: #f0f0f0;
+}
+
+.option-title {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.option-description {
+  color: #666;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+.rate-limit-explanation {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-left: 4px solid #ffc107;
+  border-radius: 4px;
+}
+
+.rate-limit-info {
+  color: #666;
+  font-size: 0.9em;
+  margin: 0;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #EF4056;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+/* Toast notification styles */
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  background-color: #4caf50;
+  color: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  max-width: 300px;
+}
+
+.toast-notification.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-notification.error {
+  background-color: #f44336;
+}
+
+.toast-notification.info {
+  background-color: #2196f3;
+}
+
+/* Connected/Disconnected status styles */
+.status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.status.connected {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.status.disconnected {
+  background: #fce8e6;
+  color: #d93025;
+}
